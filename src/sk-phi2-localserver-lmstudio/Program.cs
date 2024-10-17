@@ -23,6 +23,7 @@
 //    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 //    THE SOFTWARE.
 
+using lmstudiolocal;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
@@ -37,34 +38,40 @@ var builder = Kernel.CreateBuilder();
 builder.Services.AddKeyedSingleton<IChatCompletionService>("phi2Chat", phi2);
 var kernel = builder.Build();
 
+SamplePlugin plugin = new();
+
+kernel.Plugins.AddFromObject(plugin);
+
+// init chat
+//var chat = kernel.GetRequiredService<IChatCompletionService>();
+//var history = new ChatHistory();
+//history.AddSystemMessage("You are a useful assistant that replies using a funny style and emojis. Your name is Goku.");
+//history.AddUserMessage("hi, who are you?");
+
+//// print response
+//var result = await chat.GetChatMessageContentsAsync(history);
+//Console.WriteLine(result[^1].Content);
+
+// ADVANCED CHAT DEMO
 // init chat
 var chat = kernel.GetRequiredService<IChatCompletionService>();
 var history = new ChatHistory();
-history.AddSystemMessage("You are a useful assistant that replies using a funny style and emojis. Your name is Goku.");
-history.AddUserMessage("hi, who are you?");
+history.AddSystemMessage("You are a useful assistant that replies with short messages. Do not do math yourself. Instead, call one of the math functions like add() or subtract().");
+Console.WriteLine("Hint: type your question or type 'exit' to leave the conversation");
 
-// print response
-var result = await chat.GetChatMessageContentsAsync(history);
-Console.WriteLine(result[^1].Content);
+CustomPromptExecutionSettings executionSettings = new();
 
-// ADVANCED CHAT DEMO
-// // init chat
-// var chat = kernel.GetRequiredService<IChatCompletionService>();
-// var history = new ChatHistory();
-// history.AddSystemMessage("You are a useful assistant that replies with short messages.");
-// Console.WriteLine("Hint: type your question or type 'exit' to leave the conversation");
+// chat loop
+while (!plugin.Quit)
+{
+    Console.Write(">: ");
+    var input = Console.ReadLine();
+    if (string.IsNullOrEmpty(input) || input.ToLower() == "exit")
+        break;
+    history.AddUserMessage(input);
+    history = (ChatHistory)await chat.GetChatMessageContentsAsync(history, executionSettings, kernel);
+    Console.WriteLine(history[^1].Content);
+    Console.WriteLine("---");
+}
 
-// // chat loop
-// while (true)
-// {
-//     Console.Write("You: ");
-//     var input = Console.ReadLine();
-//     if (string.IsNullOrEmpty(input) || input.ToLower() == "exit")
-//         break;
-//     history.AddUserMessage(input);
-//     history = (ChatHistory)await chat.GetChatMessageContentsAsync(history);
-//     Console.WriteLine(history[^1].Content);
-//     Console.WriteLine("---");
-// }
-
-// Console.WriteLine("Goodbye!");
+Console.WriteLine("Goodbye!");

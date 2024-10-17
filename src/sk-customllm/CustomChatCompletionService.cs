@@ -18,17 +18,19 @@ namespace sk_customllm
         {
             using (var httpClient = new HttpClient())
             {
+                httpClient.Timeout = new TimeSpan(0, 5, 0);
+
                 using (var request = new HttpRequestMessage(new HttpMethod("POST"), ModelUrl))
                 {
-
                     // iterate though chatHistory and generate a json document based on the Root class
                     var root = new ChatRequest();
+
                     for (int i = 0; i < chatHistory.Count; i++)
                     {
                         var message = chatHistory[i];
                         var msg = new ChatMessage();
                         msg.role = message.Role.ToString().ToLower();
-                        msg.content = message.Content;
+                        msg.content = message.Content ?? "";
                         root.messages.Add(msg);
                     }
 
@@ -36,6 +38,51 @@ namespace sk_customllm
                     if (!string.IsNullOrEmpty(ModelName))
                     {
                         root.model = ModelName;
+                    }
+
+                    foreach (KernelFunctionMetadata fn in kernel?.Plugins.GetFunctionsMetadata() ?? Enumerable.Empty<KernelFunctionMetadata>())
+                    {
+                        root.tools ??= new List<ChatTool>();
+                        root.tool_choice = "required";
+
+                        var t = new ChatTool
+                        {
+                            function = new ChatTool.Function
+                            {
+                                Name = fn.Name,
+                                Description = fn.Description
+                            }
+                        };
+
+                        root.tools.Add(t);
+
+                        List<string> required = [];
+
+                        foreach (KernelParameterMetadata p in fn.Parameters)
+                        {
+                            t.function.Parameters ??= new();
+                            t.function.Parameters.Properties ??= new();
+
+                            ChatTool.FunctionProperty toolp = new();
+
+                            toolp.Type = p.ParameterType?.Name;
+                            toolp.Description = p.Description;
+
+                            if (p.IsRequired)
+                                required.Add(p.Name);
+
+                            t.function.Parameters.Properties[p.Name] = toolp;
+                        }
+
+                        if (t.function.Parameters != null)
+                        {
+                            t.function.Parameters.Required = required;
+                        }
+                    }
+
+                    if (executionSettings is CustomPromptExecutionSettings options)
+                    {
+                        root.temperature = options.Temperature ?? root.temperature;
                     }
 
                     // generate the json string from the root object
@@ -62,6 +109,5 @@ namespace sk_customllm
         {
             throw new NotImplementedException();
         }
-
     }
 }
